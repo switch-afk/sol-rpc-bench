@@ -8,13 +8,15 @@ import {
   rankRows,
   hostLabel,
 } from '../src/compare.js';
+import { checkAll, renderHealthTable, needsAttention } from '../src/health.js';
 
 const pkg = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8')
 );
 
 const DEFAULT_URL = 'https://api.mainnet-beta.solana.com';
-const MAX_COMPARE = 10;
+const MAX_ENDPOINTS = 10;
+const COMMANDS = ['latency', 'lag', 'compare', 'health'];
 
 const HELP = `
 sol-rpc-bench v${pkg.version}
@@ -24,17 +26,19 @@ Usage:
   sol-rpc-bench latency [rpc-url] [options]
   sol-rpc-bench lag <rpc-url> [options]
   sol-rpc-bench compare <rpc-url> <rpc-url> [more urls] [options]
+  sol-rpc-bench health <rpc-url> [more urls] [options]
 
 Commands:
   latency          Measure getSlot round-trip time
   lag              Compare an endpoint's slot against a reference RPC
-  compare          Benchmark 2 to ${MAX_COMPARE} endpoints and print a ranked table
+  compare          Benchmark 2 to ${MAX_ENDPOINTS} endpoints and print a ranked table
+  health           Check getHealth, version and block height of 1 to ${MAX_ENDPOINTS} endpoints
 
 Options:
   -c, --count <n>        Number of requests or rounds (1 to 100)
-                         Defaults: latency 10, lag 5, compare 5
+                         Defaults: latency 10, lag 5, compare 5 (not used by health)
   -t, --timeout <ms>     Timeout per request in ms (default 5000)
-  -r, --reference <url>  Reference RPC for lag checks
+  -r, --reference <url>  Reference RPC for lag and block height checks
                          (default ${DEFAULT_REFERENCE})
       --json             Print results as JSON only (no progress output)
   -h, --help             Show this help
@@ -47,6 +51,7 @@ Examples:
   sol-rpc-bench latency https://api.mainnet-beta.solana.com -c 20
   sol-rpc-bench lag https://your-rpc-url --json
   sol-rpc-bench compare https://rpc-one.example https://rpc-two.example -c 10
+  sol-rpc-bench health https://rpc-one.example https://rpc-two.example
 `;
 
 function fail(message) {
@@ -241,6 +246,42 @@ async function compareCommand(urls, opts) {
   if (rows.every((row) => row.latency.success === 0)) process.exitCode = 1;
 }
 
+async function healthCommand(urls, opts) {
+  const log = opts.json ? () => {} : console.log;
+  const referenceHost = hostLabel(opts.reference);
+
+  log(`Checking ${urls.length} endpoint${urls.length === 1 ? '' : 's'}`);
+  log(`Reference  ${referenceHost}\n`);
+
+  const rows = await checkAll(urls, opts.reference, {
+    timeoutMs: opts.timeout,
+    onStart: (label, n, total) => log(`  [${n}/${total}] ${label}`),
+  });
+
+  if (opts.json) {
+    printJson({
+      command: 'health',
+      reference: referenceHost,
+      timeoutMs: opts.timeout,
+      endpoints: rows.map((row) => ({
+        endpoint: row.label,
+        health: row.health.status,
+        detail: row.health.detail,
+        version: row.version,
+        blockHeight: row.blockHeight,
+        heightLag: row.heightLag,
+      })),
+    });
+  } else {
+    console.log(`\n${renderHealthTable(rows)}`);
+    console.log(
+      '\nHeight lag is blocks behind the reference (negative = ahead).'
+    );
+  }
+
+  if (needsAttention(rows)) process.exitCode = 1;
+}
+
 const { opts, positional } = parseArgs(process.argv.slice(2));
 
 if (opts.version) {
@@ -255,7 +296,7 @@ if (opts.help || positional.length === 0) {
 
 const [command, ...urlArgs] = positional;
 
-if (!['latency', 'lag', 'compare'].includes(command)) {
+if (!COMMANDS.includes(command)) {
   fail(`Unknown command: ${command}`);
 }
 
@@ -286,8 +327,8 @@ if (command === 'lag') {
 
 if (command === 'compare') {
   if (urlArgs.length < 2) fail('The compare command needs at least 2 RPC URLs.');
-  if (urlArgs.length > MAX_COMPARE) {
-    fail(`The compare command accepts at most ${MAX_COMPARE} RPC URLs.`);
+  if (urlArgs.length > MAX_ENDPOINTS) {
+    fail(`The compare command accepts at most ${MAX_ENDPOINTS} RPC URLs.`);
   }
   for (const url of urlArgs) {
     if (!validUrl(url)) fail('Invalid RPC URL.');
@@ -296,4 +337,18 @@ if (command === 'compare') {
     fail('Invalid reference URL.');
   }
   await compareCommand(urlArgs, opts);
+}
+
+if (command === 'health') {
+  if (urlArgs.length < 1) fail('The health command needs at least 1 RPC URL.');
+  if (urlArgs.length > MAX_ENDPOINTS) {
+    fail(`The health command accepts at most ${MAX_ENDPOINTS} RPC URLs.`);
+  }
+  for (const url of urlArgs) {
+    if (!validUrl(url)) fail('Invalid RPC URL.');
+  }
+  if (!opts.reference || !validUrl(opts.reference)) {
+    fail('Invalid reference URL.');
+  }
+  await healthCommand(urlArgs, opts);
 }
