@@ -8,7 +8,7 @@ Benchmark Solana RPC endpoints for latency, slot lag and reliability, so you can
 
 - [x] Latency test (`getSlot` round trips)
 - [x] Slot lag check against a reference endpoint
-- [ ] Compare multiple endpoints side by side
+- [x] Compare multiple endpoints side by side
 - [ ] JSON output for scripting
 
 ## Requirements
@@ -56,32 +56,40 @@ node bin/sol-rpc-bench.js lag https://your-rpc-url -r https://another-rpc-url -c
 
 Each round asks both endpoints for their latest slot at the same moment, then waits one second. A slot is roughly 400 ms, so a lag of 0 to 2 slots is normal noise. Consistently higher numbers mean the endpoint is falling behind the chain.
 
+### Compare
+
+Benchmark 2 to 10 endpoints in one go and get a ranked table:
+
+```bash
+node bin/sol-rpc-bench.js compare https://rpc-one.example https://rpc-two.example -c 10
+```
+
+Each endpoint gets the latency test plus 3 slot-lag rounds. Endpoints are ranked by median latency, and dead endpoints sink to the bottom. The table shows hostnames only, so API keys inside your RPC URLs never end up in the output.
+
 ### Options
 
 | Option | Description | Default |
 | --- | --- | --- |
-| `-c, --count <n>` | Requests or rounds (1 to 100) | latency 10, lag 5 |
+| `-c, --count <n>` | Requests or rounds (1 to 100) | latency 10, lag 5, compare 5 |
 | `-t, --timeout <ms>` | Timeout per request | 5000 |
-| `-r, --reference <url>` | Reference RPC for `lag` | public mainnet |
+| `-r, --reference <url>` | Reference RPC for lag checks | public mainnet |
 | `-h, --help` | Show help | |
 | `-v, --version` | Show version | |
 
 ### Example output
 
 ```
-Endpoint   https://your-rpc-url
-Reference  https://api.mainnet-beta.solana.com
-5 rounds, 1 second apart
+Comparing 2 endpoints
+Reference  api.mainnet-beta.solana.com
+5 latency requests + 3 lag rounds each
 
-  #  1  endpoint 312045678  reference 312045679  1 slots behind
-  #  2  endpoint 312045681  reference 312045681  in sync
-  ...
+  [1/2] rpc-one.example
+  [2/2] rpc-two.example
 
-Results
-  Success   5/5
-  Avg lag   0.8 slots
-  Worst     2.0 slots
-  Best      0.0 slots
+Rank  Endpoint         OK   Median  P95    Lag (slots)
+----  ---------------  ---  ------  -----  -----------
+1     rpc-one.example  5/5  48 ms   61 ms  0.3
+2     rpc-two.example  5/5  95 ms   120 ms 1.0
 ```
 
 ## License

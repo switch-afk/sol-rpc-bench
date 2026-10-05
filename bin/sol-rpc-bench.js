@@ -2,12 +2,14 @@
 import { readFileSync } from 'node:fs';
 import { runLatency } from '../src/latency.js';
 import { measureLag, DEFAULT_REFERENCE } from '../src/lag.js';
+import { compareEndpoints, renderTable, hostLabel } from '../src/compare.js';
 
 const pkg = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8')
 );
 
 const DEFAULT_URL = 'https://api.mainnet-beta.solana.com';
+const MAX_COMPARE = 10;
 
 const HELP = `
 sol-rpc-bench v${pkg.version}
@@ -16,16 +18,18 @@ Benchmark Solana RPC endpoints for latency, slot lag and reliability.
 Usage:
   sol-rpc-bench latency [rpc-url] [options]
   sol-rpc-bench lag <rpc-url> [options]
+  sol-rpc-bench compare <rpc-url> <rpc-url> [more urls] [options]
 
 Commands:
   latency          Measure getSlot round-trip time
   lag              Compare an endpoint's slot against a reference RPC
+  compare          Benchmark 2 to ${MAX_COMPARE} endpoints and print a ranked table
 
 Options:
   -c, --count <n>        Number of requests or rounds (1 to 100)
-                         Defaults: latency 10, lag 5
+                         Defaults: latency 10, lag 5, compare 5
   -t, --timeout <ms>     Timeout per request in ms (default 5000)
-  -r, --reference <url>  Reference RPC for the lag command
+  -r, --reference <url>  Reference RPC for lag checks
                          (default ${DEFAULT_REFERENCE})
   -h, --help             Show this help
   -v, --version          Show the version
@@ -34,7 +38,7 @@ Examples:
   sol-rpc-bench latency
   sol-rpc-bench latency https://api.mainnet-beta.solana.com -c 20
   sol-rpc-bench lag https://your-rpc-url
-  sol-rpc-bench lag https://your-rpc-url -r https://another-rpc-url -c 10
+  sol-rpc-bench compare https://rpc-one.example https://rpc-two.example -c 10
 `;
 
 function fail(message) {
@@ -148,6 +152,25 @@ async function lagCommand(url, opts) {
   if (summary.success === 0) process.exit(1);
 }
 
+async function compareCommand(urls, opts) {
+  console.log(`Comparing ${urls.length} endpoints`);
+  console.log(`Reference  ${hostLabel(opts.reference)}`);
+  console.log(`${opts.count} latency requests + 3 lag rounds each\n`);
+
+  const rows = await compareEndpoints(urls, opts.reference, {
+    count: opts.count,
+    timeoutMs: opts.timeout,
+    onStart: (label, n, total) => console.log(`  [${n}/${total}] ${label}`),
+  });
+
+  console.log(`\n${renderTable(rows)}`);
+  console.log(
+    '\nRanked by median latency. Lag is slots behind the reference (negative = ahead).'
+  );
+
+  if (rows.every((row) => row.latency.success === 0)) process.exit(1);
+}
+
 const { opts, positional } = parseArgs(process.argv.slice(2));
 
 if (opts.version) {
@@ -160,13 +183,13 @@ if (opts.help || positional.length === 0) {
   process.exit(0);
 }
 
-const [command, urlArg] = positional;
+const [command, ...urlArgs] = positional;
 
-if (command !== 'latency' && command !== 'lag') {
+if (!['latency', 'lag', 'compare'].includes(command)) {
   fail(`Unknown command: ${command}`);
 }
 
-if (opts.count === null) opts.count = command === 'lag' ? 5 : 10;
+if (opts.count === null) opts.count = command === 'latency' ? 10 : 5;
 
 if (!Number.isInteger(opts.count) || opts.count < 1 || opts.count > 100) {
   fail('--count must be a whole number between 1 and 100');
@@ -176,16 +199,31 @@ if (!Number.isFinite(opts.timeout) || opts.timeout <= 0) {
 }
 
 if (command === 'latency') {
-  const url = urlArg ?? DEFAULT_URL;
+  const url = urlArgs[0] ?? DEFAULT_URL;
   if (!validUrl(url)) fail(`Invalid RPC URL: ${url}`);
   await latencyCommand(url, opts);
 }
 
 if (command === 'lag') {
-  if (!urlArg) fail('The lag command needs an RPC URL to check.');
-  if (!validUrl(urlArg)) fail(`Invalid RPC URL: ${urlArg}`);
+  const url = urlArgs[0];
+  if (!url) fail('The lag command needs an RPC URL to check.');
+  if (!validUrl(url)) fail(`Invalid RPC URL: ${url}`);
   if (!opts.reference || !validUrl(opts.reference)) {
     fail(`Invalid reference URL: ${opts.reference}`);
   }
-  await lagCommand(urlArg, opts);
+  await lagCommand(url, opts);
+}
+
+if (command === 'compare') {
+  if (urlArgs.length < 2) fail('The compare command needs at least 2 RPC URLs.');
+  if (urlArgs.length > MAX_COMPARE) {
+    fail(`The compare command accepts at most ${MAX_COMPARE} RPC URLs.`);
+  }
+  for (const url of urlArgs) {
+    if (!validUrl(url)) fail(`Invalid RPC URL: ${url}`);
+  }
+  if (!opts.reference || !validUrl(opts.reference)) {
+    fail(`Invalid reference URL: ${opts.reference}`);
+  }
+  await compareCommand(urlArgs, opts);
 }
