@@ -7,7 +7,8 @@
     "sol-rpc-bench": "./bin/sol-rpc-bench.js"
   },
   "scripts": {
-    "start": "node bin/sol-rpc-bench.js"
+    "start": "node bin/sol-rpc-bench.js",
+    "test": "node --test tests/*.test.js"
   },
   "engines": {
     "node": ">=18"
