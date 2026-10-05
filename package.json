@@ -1,0 +1,24 @@
+{
+  "name": "sol-rpc-bench",
+  "version": "0.1.0",
+  "description": "Benchmark Solana RPC endpoints for latency, slot lag and reliability",
+  "type": "module",
+  "bin": {
+    "sol-rpc-bench": "./bin/sol-rpc-bench.js"
+  },
+  "scripts": {
+    "start": "node bin/sol-rpc-bench.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "solana",
+    "rpc",
+    "benchmark",
+    "latency",
+    "cli"
+  ],
+  "author": "switch-afk",
+  "license": "MIT"
+}
