@@ -1,5 +1,7 @@
 # sol-rpc-bench
 
+![Tests](https://github.com/switch-afk/sol-rpc-bench/actions/workflows/test.yml/badge.svg)
+
 Benchmark Solana RPC endpoints for latency, slot lag and reliability, so you can pick the right RPC for your bot or app.
 
 > Status: early development. Features are landing one PR at a time.
@@ -11,6 +13,7 @@ Benchmark Solana RPC endpoints for latency, slot lag and reliability, so you can
 - [x] Compare multiple endpoints side by side
 - [x] JSON output for scripting
 - [x] API keys in RPC URLs are never printed
+- [x] Automated tests and CI
 
 ## Requirements
 
@@ -124,6 +127,16 @@ Rank  Endpoint         OK   Median  P95     Lag (slots)
 1     rpc-one.example  5/5  48 ms   61 ms   0.3
 2     rpc-two.example  5/5  95 ms   120 ms  1.0
 ```
+
+## Development
+
+Run the test suite (no network needed, tests use local fake RPC servers):
+
+```bash
+npm test
+```
+
+Tests run automatically on every pull request through GitHub Actions.
 
 ## License
 
