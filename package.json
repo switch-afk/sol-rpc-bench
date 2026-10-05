@@ -1,11 +1,17 @@
 {
   "name": "sol-rpc-bench",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Benchmark Solana RPC endpoints for latency, slot lag and reliability",
   "type": "module",
   "bin": {
     "sol-rpc-bench": "./bin/sol-rpc-bench.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "node bin/sol-rpc-bench.js",
     "test": "node --test tests/*.test.js"
@@ -13,12 +19,23 @@
   "engines": {
     "node": ">=18"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/switch-afk/sol-rpc-bench.git"
+  },
+  "homepage": "https://github.com/switch-afk/sol-rpc-bench#readme",
+  "bugs": {
+    "url": "https://github.com/switch-afk/sol-rpc-bench/issues"
+  },
   "keywords": [
     "solana",
     "rpc",
     "benchmark",
     "latency",
-    "cli"
+    "cli",
+    "web3",
+    "slot",
+    "node-health"
   ],
   "author": "switch-afk",
   "license": "MIT"

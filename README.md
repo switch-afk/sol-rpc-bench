@@ -4,27 +4,39 @@
 
 Benchmark Solana RPC endpoints for latency, slot lag and reliability, so you can pick the right RPC for your bot or app.
 
-> Status: early development. Features are landing one PR at a time.
-
 ## Features
 
-- [x] Latency test (`getSlot` round trips)
-- [x] Slot lag check against a reference endpoint
-- [x] Compare multiple endpoints side by side
-- [x] JSON output for scripting
-- [x] API keys in RPC URLs are never printed
-- [x] Automated tests and CI
+- Latency test (`getSlot` round trips) with min, avg, median, p95 and max
+- Slot lag check against a reference endpoint
+- Compare 2 to 10 endpoints in one ranked table
+- JSON output for scripting (`--json`)
+- API keys in RPC URLs are never printed
+- Zero dependencies, offline test suite, CI on every PR
 
-## Requirements
+## Quick start
 
-- Node.js 18 or newer
+Run it straight from GitHub, no install needed:
 
-## Install
+```bash
+npx github:switch-afk/sol-rpc-bench latency
+```
+
+Or install it globally:
+
+```bash
+npm install -g github:switch-afk/sol-rpc-bench
+sol-rpc-bench latency
+```
+
+Or clone it:
 
 ```bash
 git clone https://github.com/switch-afk/sol-rpc-bench.git
 cd sol-rpc-bench
+node bin/sol-rpc-bench.js latency
 ```
+
+Requires Node.js 18 or newer. The examples below use `sol-rpc-bench`. If you cloned the repo, use `node bin/sol-rpc-bench.js` instead.
 
 ## Usage
 
@@ -33,13 +45,13 @@ cd sol-rpc-bench
 Measure latency of the public mainnet RPC:
 
 ```bash
-node bin/sol-rpc-bench.js latency
+sol-rpc-bench latency
 ```
 
 Test your own endpoint with 20 requests:
 
 ```bash
-node bin/sol-rpc-bench.js latency https://your-rpc-url -c 20
+sol-rpc-bench latency https://your-rpc-url -c 20
 ```
 
 One warm-up request is sent first and not counted, so connection setup does not skew the numbers.
@@ -49,13 +61,13 @@ One warm-up request is sent first and not counted, so connection setup does not 
 Check how far behind an endpoint is compared to a reference RPC (public mainnet by default):
 
 ```bash
-node bin/sol-rpc-bench.js lag https://your-rpc-url
+sol-rpc-bench lag https://your-rpc-url
 ```
 
 Use a different reference and more rounds:
 
 ```bash
-node bin/sol-rpc-bench.js lag https://your-rpc-url -r https://another-rpc-url -c 10
+sol-rpc-bench lag https://your-rpc-url -r https://another-rpc-url -c 10
 ```
 
 Each round asks both endpoints for their latest slot at the same moment, then waits one second. A slot is roughly 400 ms, so a lag of 0 to 2 slots is normal noise. Consistently higher numbers mean the endpoint is falling behind the chain.
@@ -65,7 +77,7 @@ Each round asks both endpoints for their latest slot at the same moment, then wa
 Benchmark 2 to 10 endpoints in one go and get a ranked table:
 
 ```bash
-node bin/sol-rpc-bench.js compare https://rpc-one.example https://rpc-two.example -c 10
+sol-rpc-bench compare https://rpc-one.example https://rpc-two.example -c 10
 ```
 
 Each endpoint gets the latency test plus 3 slot-lag rounds. Endpoints are ranked by median latency, and dead endpoints sink to the bottom.
@@ -75,7 +87,7 @@ Each endpoint gets the latency test plus 3 slot-lag rounds. Endpoints are ranked
 Add `--json` to any command to get machine-readable output and nothing else:
 
 ```bash
-node bin/sol-rpc-bench.js compare https://rpc-one.example https://rpc-two.example --json
+sol-rpc-bench compare https://rpc-one.example https://rpc-two.example --json
 ```
 
 ```json
@@ -137,6 +149,10 @@ npm test
 ```
 
 Tests run automatically on every pull request through GitHub Actions.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and ideas.
 
 ## License
 
