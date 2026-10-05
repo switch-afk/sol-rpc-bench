@@ -21,12 +21,12 @@ Requires Node.js 18 or newer. There are no dependencies to install.
 
 ## Ideas
 
-- A `health` command that calls `getHealth` on each endpoint
-- Block height comparison alongside slot lag
 - CSV output (`--csv`) for spreadsheets
 - Read endpoints from a config file (`--config endpoints.json`)
 - Devnet and testnet reference defaults
 - A `--watch` mode that repeats the benchmark on an interval
+- Benchmark heavier methods such as `getBlock` or `getTransaction`
+- Show the Solana version in the `compare` table
 
 Open an issue first if you want to discuss a bigger change.
 

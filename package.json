@@ -1,6 +1,6 @@
 {
   "name": "sol-rpc-bench",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Benchmark Solana RPC endpoints for latency, slot lag and reliability",
   "type": "module",
   "bin": {
@@ -35,6 +35,7 @@
     "cli",
     "web3",
     "slot",
+    "health-check",
     "node-health"
   ],
   "author": "switch-afk",

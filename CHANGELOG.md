@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- New `health` command: checks `getHealth`, Solana version and block height for 1 to 10 endpoints
+- Block height lag against a reference RPC, shown next to the health status
+- `health` exits with code 1 when any endpoint is behind or broken, so scripts can alert on it
+- Endpoints that block `getHealth` are shown as `n/a` instead of failing
+- 8 new tests
+
 ## 0.2.0 - 2026-10-06
 
 - Package is now installable and runnable with `npx github:switch-afk/sol-rpc-bench`

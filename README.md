@@ -9,6 +9,7 @@ Benchmark Solana RPC endpoints for latency, slot lag and reliability, so you can
 - Latency test (`getSlot` round trips) with min, avg, median, p95 and max
 - Slot lag check against a reference endpoint
 - Compare 2 to 10 endpoints in one ranked table
+- Health check: `getHealth`, Solana version and block height lag
 - JSON output for scripting (`--json`)
 - API keys in RPC URLs are never printed
 - Zero dependencies, offline test suite, CI on every PR
@@ -82,6 +83,28 @@ sol-rpc-bench compare https://rpc-one.example https://rpc-two.example -c 10
 
 Each endpoint gets the latency test plus 3 slot-lag rounds. Endpoints are ranked by median latency, and dead endpoints sink to the bottom.
 
+### Health
+
+Check 1 to 10 endpoints for node health, Solana version and block height:
+
+```bash
+sol-rpc-bench health https://rpc-one.example https://rpc-two.example
+```
+
+```
+Endpoint         Health  Version  Block height  Height lag
+---------------  ------  -------  ------------  ----------
+rpc-one.example  ok      2.1.0    312045678     0
+rpc-two.example  behind  2.1.0    312045601     77
+
+Notes
+  rpc-two.example: Node is behind by 80 slots
+```
+
+- **Health** comes from `getHealth`: `ok`, `behind`, `error`, or `n/a` when the provider blocks that method.
+- **Height lag** is the block height difference against the reference RPC (positive = behind).
+- The exit code is 1 if any endpoint is `behind` or `error`, so you can use it in monitoring scripts. `n/a` does not fail.
+
 ### JSON output
 
 Add `--json` to any command to get machine-readable output and nothing else:
@@ -119,7 +142,7 @@ Only hostnames are ever printed, never full URLs, so API keys in the path or que
 | --- | --- | --- |
 | `-c, --count <n>` | Requests or rounds (1 to 100) | latency 10, lag 5, compare 5 |
 | `-t, --timeout <ms>` | Timeout per request | 5000 |
-| `-r, --reference <url>` | Reference RPC for lag checks | public mainnet |
+| `-r, --reference <url>` | Reference RPC for lag and block height checks | public mainnet |
 | `--json` | Print JSON only | off |
 | `-h, --help` | Show help | |
 | `-v, --version` | Show version | |
