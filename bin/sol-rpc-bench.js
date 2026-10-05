@@ -2,7 +2,12 @@
 import { readFileSync } from 'node:fs';
 import { runLatency } from '../src/latency.js';
 import { measureLag, DEFAULT_REFERENCE } from '../src/lag.js';
-import { compareEndpoints, renderTable, hostLabel } from '../src/compare.js';
+import {
+  compareEndpoints,
+  renderTable,
+  rankRows,
+  hostLabel,
+} from '../src/compare.js';
 
 const pkg = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8')
@@ -31,13 +36,16 @@ Options:
   -t, --timeout <ms>     Timeout per request in ms (default 5000)
   -r, --reference <url>  Reference RPC for lag checks
                          (default ${DEFAULT_REFERENCE})
+      --json             Print results as JSON only (no progress output)
   -h, --help             Show this help
   -v, --version          Show the version
+
+Only hostnames are printed, never full URLs, so API keys stay private.
 
 Examples:
   sol-rpc-bench latency
   sol-rpc-bench latency https://api.mainnet-beta.solana.com -c 20
-  sol-rpc-bench lag https://your-rpc-url
+  sol-rpc-bench lag https://your-rpc-url --json
   sol-rpc-bench compare https://rpc-one.example https://rpc-two.example -c 10
 `;
 
@@ -52,6 +60,7 @@ function parseArgs(argv) {
     count: null,
     timeout: 5000,
     reference: DEFAULT_REFERENCE,
+    json: false,
     help: false,
     version: false,
   };
@@ -61,6 +70,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '-h' || arg === '--help') opts.help = true;
     else if (arg === '-v' || arg === '--version') opts.version = true;
+    else if (arg === '--json') opts.json = true;
     else if (arg === '-c' || arg === '--count') opts.count = Number(argv[++i]);
     else if (arg === '-t' || arg === '--timeout') opts.timeout = Number(argv[++i]);
     else if (arg === '-r' || arg === '--reference') opts.reference = argv[++i];
@@ -94,35 +104,65 @@ function describeLag(lag) {
   return `${-lag} slots ahead`;
 }
 
+function roundValues(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => [
+      key,
+      typeof value === 'number' ? Math.round(value * 100) / 100 : value,
+    ])
+  );
+}
+
+function printJson(data) {
+  console.log(JSON.stringify(data, null, 2));
+}
+
 async function latencyCommand(url, opts) {
-  console.log(`Testing ${url}`);
-  console.log(`${opts.count} requests, ${opts.timeout} ms timeout\n`);
+  const log = opts.json ? () => {} : console.log;
+  const host = hostLabel(url);
+
+  log(`Testing ${host}`);
+  log(`${opts.count} requests, ${opts.timeout} ms timeout\n`);
 
   const summary = await runLatency(url, {
     count: opts.count,
     timeoutMs: opts.timeout,
     onSample: (sample, n) => {
       const label = String(n).padStart(3, ' ');
-      if (sample.ok) console.log(`  #${label}  ${fmtMs(sample.ms)}`);
-      else console.log(`  #${label}  failed (${sample.error})`);
+      if (sample.ok) log(`  #${label}  ${fmtMs(sample.ms)}`);
+      else log(`  #${label}  failed (${sample.error})`);
     },
   });
 
-  console.log('\nResults');
-  console.log(`  Success   ${summary.success}/${summary.total}`);
-  console.log(`  Min       ${fmtMs(summary.min)}`);
-  console.log(`  Avg       ${fmtMs(summary.avg)}`);
-  console.log(`  Median    ${fmtMs(summary.median)}`);
-  console.log(`  P95       ${fmtMs(summary.p95)}`);
-  console.log(`  Max       ${fmtMs(summary.max)}`);
+  if (opts.json) {
+    printJson({
+      command: 'latency',
+      endpoint: host,
+      requests: opts.count,
+      timeoutMs: opts.timeout,
+      results: roundValues(summary),
+    });
+  } else {
+    console.log('\nResults');
+    console.log(`  Success   ${summary.success}/${summary.total}`);
+    console.log(`  Min       ${fmtMs(summary.min)}`);
+    console.log(`  Avg       ${fmtMs(summary.avg)}`);
+    console.log(`  Median    ${fmtMs(summary.median)}`);
+    console.log(`  P95       ${fmtMs(summary.p95)}`);
+    console.log(`  Max       ${fmtMs(summary.max)}`);
+  }
 
-  if (summary.success === 0) process.exit(1);
+  if (summary.success === 0) process.exitCode = 1;
 }
 
 async function lagCommand(url, opts) {
-  console.log(`Endpoint   ${url}`);
-  console.log(`Reference  ${opts.reference}`);
-  console.log(`${opts.count} rounds, 1 second apart\n`);
+  const log = opts.json ? () => {} : console.log;
+  const host = hostLabel(url);
+  const referenceHost = hostLabel(opts.reference);
+
+  log(`Endpoint   ${host}`);
+  log(`Reference  ${referenceHost}`);
+  log(`${opts.count} rounds, 1 second apart\n`);
 
   const summary = await measureLag(url, opts.reference, {
     rounds: opts.count,
@@ -133,42 +173,72 @@ async function lagCommand(url, opts) {
         const reason = !round.target.ok
           ? `endpoint: ${round.target.error}`
           : `reference: ${round.ref.error}`;
-        console.log(`  #${label}  failed (${reason})`);
+        log(`  #${label}  failed (${reason})`);
       } else {
-        console.log(
+        log(
           `  #${label}  endpoint ${round.target.result}  reference ${round.ref.result}  ${describeLag(round.lag)}`
         );
       }
     },
   });
 
-  console.log('\nResults');
-  console.log(`  Success   ${summary.success}/${summary.total}`);
-  console.log(`  Avg lag   ${fmtSlots(summary.avg)}`);
-  console.log(`  Worst     ${fmtSlots(summary.worst)}`);
-  console.log(`  Best      ${fmtSlots(summary.best)}`);
-  console.log('\nPositive = behind the reference, negative = ahead of it.');
+  if (opts.json) {
+    printJson({
+      command: 'lag',
+      endpoint: host,
+      reference: referenceHost,
+      rounds: opts.count,
+      timeoutMs: opts.timeout,
+      results: roundValues(summary),
+    });
+  } else {
+    console.log('\nResults');
+    console.log(`  Success   ${summary.success}/${summary.total}`);
+    console.log(`  Avg lag   ${fmtSlots(summary.avg)}`);
+    console.log(`  Worst     ${fmtSlots(summary.worst)}`);
+    console.log(`  Best      ${fmtSlots(summary.best)}`);
+    console.log('\nPositive = behind the reference, negative = ahead of it.');
+  }
 
-  if (summary.success === 0) process.exit(1);
+  if (summary.success === 0) process.exitCode = 1;
 }
 
 async function compareCommand(urls, opts) {
-  console.log(`Comparing ${urls.length} endpoints`);
-  console.log(`Reference  ${hostLabel(opts.reference)}`);
-  console.log(`${opts.count} latency requests + 3 lag rounds each\n`);
+  const log = opts.json ? () => {} : console.log;
+  const referenceHost = hostLabel(opts.reference);
+
+  log(`Comparing ${urls.length} endpoints`);
+  log(`Reference  ${referenceHost}`);
+  log(`${opts.count} latency requests + 3 lag rounds each\n`);
 
   const rows = await compareEndpoints(urls, opts.reference, {
     count: opts.count,
     timeoutMs: opts.timeout,
-    onStart: (label, n, total) => console.log(`  [${n}/${total}] ${label}`),
+    onStart: (label, n, total) => log(`  [${n}/${total}] ${label}`),
   });
 
-  console.log(`\n${renderTable(rows)}`);
-  console.log(
-    '\nRanked by median latency. Lag is slots behind the reference (negative = ahead).'
-  );
+  if (opts.json) {
+    const ranked = rankRows(rows);
+    printJson({
+      command: 'compare',
+      reference: referenceHost,
+      requestsPerEndpoint: opts.count,
+      timeoutMs: opts.timeout,
+      endpoints: ranked.map((row, i) => ({
+        rank: row.latency.success > 0 ? i + 1 : null,
+        endpoint: row.label,
+        latency: roundValues(row.latency),
+        lag: roundValues(row.lag),
+      })),
+    });
+  } else {
+    console.log(`\n${renderTable(rows)}`);
+    console.log(
+      '\nRanked by median latency. Lag is slots behind the reference (negative = ahead).'
+    );
+  }
 
-  if (rows.every((row) => row.latency.success === 0)) process.exit(1);
+  if (rows.every((row) => row.latency.success === 0)) process.exitCode = 1;
 }
 
 const { opts, positional } = parseArgs(process.argv.slice(2));
@@ -200,16 +270,16 @@ if (!Number.isFinite(opts.timeout) || opts.timeout <= 0) {
 
 if (command === 'latency') {
   const url = urlArgs[0] ?? DEFAULT_URL;
-  if (!validUrl(url)) fail(`Invalid RPC URL: ${url}`);
+  if (!validUrl(url)) fail('Invalid RPC URL.');
   await latencyCommand(url, opts);
 }
 
 if (command === 'lag') {
   const url = urlArgs[0];
   if (!url) fail('The lag command needs an RPC URL to check.');
-  if (!validUrl(url)) fail(`Invalid RPC URL: ${url}`);
+  if (!validUrl(url)) fail('Invalid RPC URL.');
   if (!opts.reference || !validUrl(opts.reference)) {
-    fail(`Invalid reference URL: ${opts.reference}`);
+    fail('Invalid reference URL.');
   }
   await lagCommand(url, opts);
 }
@@ -220,10 +290,10 @@ if (command === 'compare') {
     fail(`The compare command accepts at most ${MAX_COMPARE} RPC URLs.`);
   }
   for (const url of urlArgs) {
-    if (!validUrl(url)) fail(`Invalid RPC URL: ${url}`);
+    if (!validUrl(url)) fail('Invalid RPC URL.');
   }
   if (!opts.reference || !validUrl(opts.reference)) {
-    fail(`Invalid reference URL: ${opts.reference}`);
+    fail('Invalid reference URL.');
   }
   await compareCommand(urlArgs, opts);
 }

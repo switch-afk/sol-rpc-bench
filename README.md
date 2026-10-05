@@ -2,14 +2,15 @@
 
 Benchmark Solana RPC endpoints for latency, slot lag and reliability, so you can pick the right RPC for your bot or app.
 
-> Status: early development. Benchmarks are landing one PR at a time.
+> Status: early development. Features are landing one PR at a time.
 
 ## Features
 
 - [x] Latency test (`getSlot` round trips)
 - [x] Slot lag check against a reference endpoint
 - [x] Compare multiple endpoints side by side
-- [ ] JSON output for scripting
+- [x] JSON output for scripting
+- [x] API keys in RPC URLs are never printed
 
 ## Requirements
 
@@ -64,7 +65,38 @@ Benchmark 2 to 10 endpoints in one go and get a ranked table:
 node bin/sol-rpc-bench.js compare https://rpc-one.example https://rpc-two.example -c 10
 ```
 
-Each endpoint gets the latency test plus 3 slot-lag rounds. Endpoints are ranked by median latency, and dead endpoints sink to the bottom. The table shows hostnames only, so API keys inside your RPC URLs never end up in the output.
+Each endpoint gets the latency test plus 3 slot-lag rounds. Endpoints are ranked by median latency, and dead endpoints sink to the bottom.
+
+### JSON output
+
+Add `--json` to any command to get machine-readable output and nothing else:
+
+```bash
+node bin/sol-rpc-bench.js compare https://rpc-one.example https://rpc-two.example --json
+```
+
+```json
+{
+  "command": "compare",
+  "reference": "api.mainnet-beta.solana.com",
+  "requestsPerEndpoint": 5,
+  "timeoutMs": 5000,
+  "endpoints": [
+    {
+      "rank": 1,
+      "endpoint": "rpc-one.example",
+      "latency": { "total": 5, "success": 5, "failed": 0, "min": 44, "avg": 48.2, "median": 47, "p95": 55, "max": 55 },
+      "lag": { "total": 3, "success": 3, "failed": 0, "avg": 0.33, "best": 0, "worst": 1 }
+    }
+  ]
+}
+```
+
+Latency values are in milliseconds and lag values are in slots. Failed endpoints get `"rank": null`. The exit code is 1 when every request failed, so scripts can check it.
+
+### Privacy
+
+Only hostnames are ever printed, never full URLs, so API keys in the path or query string stay out of your terminal history, logs and pasted output.
 
 ### Options
 
@@ -73,6 +105,7 @@ Each endpoint gets the latency test plus 3 slot-lag rounds. Endpoints are ranked
 | `-c, --count <n>` | Requests or rounds (1 to 100) | latency 10, lag 5, compare 5 |
 | `-t, --timeout <ms>` | Timeout per request | 5000 |
 | `-r, --reference <url>` | Reference RPC for lag checks | public mainnet |
+| `--json` | Print JSON only | off |
 | `-h, --help` | Show help | |
 | `-v, --version` | Show version | |
 
@@ -86,10 +119,10 @@ Reference  api.mainnet-beta.solana.com
   [1/2] rpc-one.example
   [2/2] rpc-two.example
 
-Rank  Endpoint         OK   Median  P95    Lag (slots)
-----  ---------------  ---  ------  -----  -----------
-1     rpc-one.example  5/5  48 ms   61 ms  0.3
-2     rpc-two.example  5/5  95 ms   120 ms 1.0
+Rank  Endpoint         OK   Median  P95     Lag (slots)
+----  ---------------  ---  ------  ------  -----------
+1     rpc-one.example  5/5  48 ms   61 ms   0.3
+2     rpc-two.example  5/5  95 ms   120 ms  1.0
 ```
 
 ## License
